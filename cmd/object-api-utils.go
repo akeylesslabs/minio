@@ -33,18 +33,18 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/config/compress"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/config/etcd/dns"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/config/storageclass"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/crypto"
+	xhttp "akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/http"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/logger"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/hash"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/ioutil"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/wildcard"
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/readahead"
 	"github.com/minio/minio-go/v6/pkg/s3utils"
-	"github.com/minio/minio/cmd/config/compress"
-	"github.com/minio/minio/cmd/config/etcd/dns"
-	"github.com/minio/minio/cmd/config/storageclass"
-	"github.com/minio/minio/cmd/crypto"
-	xhttp "github.com/minio/minio/cmd/http"
-	"github.com/minio/minio/cmd/logger"
-	"github.com/minio/minio/pkg/hash"
-	"github.com/minio/minio/pkg/ioutil"
-	"github.com/minio/minio/pkg/wildcard"
 	"github.com/skyrings/skyring-common/tools/uuid"
 )
 
@@ -700,6 +700,40 @@ func NewGetObjectReader(rs *HTTPRangeSpec, oi ObjectInfo, pcfn CheckCopyPrecondi
 		}
 	}
 	return fn, off, length, nil
+}
+
+type Akl struct{
+	Name string
+	N int64  // max bytes remaining
+	AklsData []byte
+}
+func (a *Akl) Read(p []byte) (n int, e error) {
+	fmt.Println("********InReader*******", n, a.N)
+
+	if a.N <= 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > a.N {
+		p = p[0:a.N]
+	}
+	//n, err = l.R.Read(p)
+	//n = copy(p, []byte("KUKU"))
+	n = copy(p, a.AklsData)
+	a.N -= int64(n)
+	return
+}
+
+func NewGetAklsObjectReader(rs *HTTPRangeSpec, oi ObjectInfo) (*GetObjectReader, error) {
+	a := &Akl{Name: oi.Name, N: oi.Size, AklsData: oi.AklsData}
+
+	fn := &GetObjectReader{
+		ObjInfo:    oi,
+		pReader:    a,                                               
+		cleanUpFns: []func(){},                                        
+		precondFn:  func(o ObjectInfo, s string) bool { return true }, 
+	}
+
+	return fn, nil
 }
 
 // Close - calls the cleanup actions in reverse order

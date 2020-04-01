@@ -23,8 +23,8 @@ import (
 	pathutil "path"
 	"runtime"
 
-	"github.com/minio/minio/cmd/logger"
-	"github.com/minio/minio/pkg/lock"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/logger"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/lock"
 )
 
 // Removes only the file at given path does not remove
@@ -228,9 +228,35 @@ func fsStatDir(ctx context.Context, statDir string) (os.FileInfo, error) {
 	return fi, nil
 }
 
+// type AklsFI struct {
+// 	Fi os.FileInfo
+// }
+
+// func (afi *AklsFI) Name() string {
+// 	return afi.Fi.Name()
+// }
+// func (afi *AklsFI) Size() int64 {
+// 	return afi.Fi.Size()
+// }
+// func (afi *AklsFI) Mode() os.FileMode {
+// 	return os.FileMode(400)
+// }
+// func (afi *AklsFI) ModTime() time.Time {
+// 	return afi.Fi.ModTime()
+// }
+// func (afi *AklsFI) IsDir() bool {
+// 	return afi.Fi.IsDir()
+// }
+// func (afi *AklsFI) Sys() interface{} {
+// 	return afi.Fi.Sys()
+// }
+
 // Lookup if file exists, returns file attributes upon success.
 func fsStatFile(ctx context.Context, statFile string) (os.FileInfo, error) {
+	//fmt.Println("***********fsStatFile********", statFile)
+
 	fi, err := fsStat(ctx, statFile)
+
 	if err != nil {
 		err = osErrToFSFileErr(err)
 		if err != errFileNotFound {
@@ -241,11 +267,14 @@ func fsStatFile(ctx context.Context, statFile string) (os.FileInfo, error) {
 	if fi.IsDir() {
 		return nil, errFileNotFound
 	}
+
+	//fmt.Println("***********fsStatFile******** - DONE", fi.Mode(), fi)
 	return fi, nil
 }
 
 // Returns if the filePath is a regular file.
 func fsIsFile(ctx context.Context, filePath string) bool {
+	//fmt.Println("***********fsIsFile********", filePath)
 	fi, err := fsStat(ctx, filePath)
 	if err != nil {
 		return false

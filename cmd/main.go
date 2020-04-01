@@ -17,15 +17,48 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/minio/cli"
-	"github.com/minio/minio/pkg/console"
-	"github.com/minio/minio/pkg/trie"
-	"github.com/minio/minio/pkg/words"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/console"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/trie"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/words"
+
+	"akeyless.io/akeyless-main-repo/go/src/sdk"
+	"akeyless.io/akeyless-main-repo/go/src/sdk/config"
+	//"akeyless.io/akeyless-main-repo/go/src/infra/akeyless-api/uam"
 )
+
+var Akls sdk.AdminClient
+
+func loginAkeyless() sdk.AdminClient {
+	
+	cnf := config.NewConfig("https://vault.akeyless.io", os.Getenv("MINIO_ACCESS_KEY"), os.Getenv("MINIO_SECRET_KEY"));
+	// cnf := &config.Config{
+	// 	Protocol:     "https",
+	// 	UamServerDNS: "https://vault.akeyless.io",
+	// 	ApiKey:       os.Getenv("MINIO_SECRET_KEY"),
+	// 	AccessId:     os.Getenv("MINIO_ACCESS_KEY"),
+	// 	AccessType:   config.AccessBasedAPIKey,
+	// }
+
+	var err error
+	aklsAdmin, err := sdk.NewAdminClient(cnf)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	fmt.Println("Akeyless login done...")
+
+	// _, err = aklsAdmin.ListItems(uam.GetSecretTypes())
+	// if err != nil{
+	// 	fmt.Println(err.Error())
+	// }
+	return aklsAdmin
+}
 
 // GlobalFlags - global flags for minio.
 var GlobalFlags = []cli.Flag{
@@ -152,6 +185,8 @@ func newApp(name string) *cli.App {
 
 // Main main for minio server.
 func Main(args []string) {
+	Akls = loginAkeyless()
+
 	// Set the minio app name.
 	appName := filepath.Base(args[0])
 

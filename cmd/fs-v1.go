@@ -32,20 +32,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"akeyless.io/akeyless-main-repo/go/src/infra/akeyless-api/uam"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/config"
+	xhttp "akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/http"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/logger"
+	bucketsse "akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/bucket/encryption"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/bucket/lifecycle"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/bucket/object/tagging"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/bucket/policy"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/color"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/lock"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/madmin"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/mimedb"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/mountinfo"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/minio/minio-go/v6/pkg/s3utils"
-	"github.com/minio/minio/cmd/config"
-	xhttp "github.com/minio/minio/cmd/http"
-	"github.com/minio/minio/cmd/logger"
-	bucketsse "github.com/minio/minio/pkg/bucket/encryption"
-	"github.com/minio/minio/pkg/bucket/lifecycle"
-	"github.com/minio/minio/pkg/bucket/object/tagging"
-	"github.com/minio/minio/pkg/bucket/policy"
-	"github.com/minio/minio/pkg/color"
-	"github.com/minio/minio/pkg/lock"
-	"github.com/minio/minio/pkg/madmin"
-	"github.com/minio/minio/pkg/mimedb"
-	"github.com/minio/minio/pkg/mountinfo"
+
 )
 
 // Default etag is used for pre-existing objects.
@@ -445,6 +447,9 @@ func (fs *FSObjects) DeleteBucket(ctx context.Context, bucket string) error {
 // if source object and destination object are same we only
 // update metadata.
 func (fs *FSObjects) CopyObject(ctx context.Context, srcBucket, srcObject, dstBucket, dstObject string, srcInfo ObjectInfo, srcOpts, dstOpts ObjectOptions) (oi ObjectInfo, e error) {
+
+	fmt.Println("****CopyObject****", srcBucket, srcObject)
+
 	cpSrcDstSame := isStringEqual(pathJoin(srcBucket, srcObject), pathJoin(dstBucket, dstObject))
 	if !cpSrcDstSame {
 		objectDWLock := fs.NewNSLock(ctx, dstBucket, dstObject)
@@ -511,6 +516,18 @@ func (fs *FSObjects) CopyObject(ctx context.Context, srcBucket, srcObject, dstBu
 // GetObjectNInfo - returns object info and a reader for object
 // content.
 func (fs *FSObjects) GetObjectNInfo(ctx context.Context, bucket, object string, rs *HTTPRangeSpec, h http.Header, lockType LockType, opts ObjectOptions) (gr *GetObjectReader, err error) {
+
+	if bucket == "Akeyless" {
+		fmt.Println("****GetObjectNInfo****", bucket, object)
+
+		objInfo, err := fs.getObjectInfo(ctx, bucket, object)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewGetAklsObjectReader(rs, objInfo)
+	}
+
 	if err = checkGetObjArgs(ctx, bucket, object); err != nil {
 		return nil, err
 	}
@@ -561,6 +578,9 @@ func (fs *FSObjects) GetObjectNInfo(ctx context.Context, bucket, object string, 
 	rwPoolUnlocker := func() {}
 	if bucket != minioMetaBucket && lockType != noLock {
 		fsMetaPath := pathJoin(fs.fsPath, minioMetaBucket, bucketMetaPrefix, bucket, object, fs.metaJSONFile)
+
+		//fmt.Println("*************fsMetaPath:", fsMetaPath)
+
 		_, err = fs.rwPool.Open(fsMetaPath)
 		if err != nil && err != errFileNotFound {
 			logger.LogIf(ctx, err)
@@ -585,7 +605,12 @@ func (fs *FSObjects) GetObjectNInfo(ctx context.Context, bucket, object string, 
 		nsUnlocker()
 		return nil, toObjectErr(err, bucket, object)
 	}
+
+	//fmt.Println("*********Creating reader, length:", length)
+
+	//reader := &Akl{Name: objInfo.Name, N: length}
 	reader := io.LimitReader(readCloser, length)
+
 	closeFn := func() {
 		readCloser.Close()
 	}
@@ -601,6 +626,7 @@ func (fs *FSObjects) GetObjectNInfo(ctx context.Context, bucket, object string, 
 	}
 
 	return objReaderFn(reader, h, opts.CheckCopyPrecondFn, closeFn)
+	//return NewGetAklsObjectReader(rs, objInfo)
 }
 
 // GetObject - reads an object from the disk.
@@ -610,6 +636,9 @@ func (fs *FSObjects) GetObjectNInfo(ctx context.Context, bucket, object string, 
 // startOffset indicates the starting read location of the object.
 // length indicates the total length of the object.
 func (fs *FSObjects) GetObject(ctx context.Context, bucket, object string, offset int64, length int64, writer io.Writer, etag string, opts ObjectOptions) (err error) {
+
+	//fmt.Println("****GetObject****", bucket, object)
+
 	if err = checkGetObjArgs(ctx, bucket, object); err != nil {
 		return err
 	}
@@ -632,6 +661,13 @@ func (fs *FSObjects) GetObject(ctx context.Context, bucket, object string, offse
 
 // getObject - wrapper for GetObject
 func (fs *FSObjects) getObject(ctx context.Context, bucket, object string, offset int64, length int64, writer io.Writer, etag string, lock bool) (err error) {
+
+	//fmt.Println("****getObject****", bucket, object)
+	if bucket == "Akeyless" {
+		
+
+	}
+
 	if _, err = fs.statBucketDir(ctx, bucket); err != nil {
 		return toObjectErr(err, bucket)
 	}
@@ -743,6 +779,13 @@ func (fs *FSObjects) defaultFsJSON(object string) fsMetaV1 {
 // getObjectInfo - wrapper for reading object metadata and constructs ObjectInfo.
 func (fs *FSObjects) getObjectInfo(ctx context.Context, bucket, object string) (oi ObjectInfo, e error) {
 	fsMeta := fsMetaV1{}
+	if bucket == "Akeyless" {
+		fmt.Println("*****getObjectInfo*****", bucket, object)
+
+		oi = fsMeta.ToObjectInfoAkls(bucket, object, "pem")
+		return oi, nil
+	}
+
 	if HasSuffix(object, SlashSeparator) {
 		fi, err := fsStatDir(ctx, pathJoin(fs.fsPath, bucket, object))
 		if err != nil {
@@ -783,7 +826,9 @@ func (fs *FSObjects) getObjectInfo(ctx context.Context, bucket, object string) (
 		return oi, err
 	}
 
-	return fsMeta.ToObjectInfo(bucket, object, fi), nil
+	oii := fsMeta.ToObjectInfo(bucket, object, fi)
+
+	return oii, nil
 }
 
 // getObjectInfoWithLock - reads object metadata and replies back ObjectInfo.
@@ -1102,6 +1147,7 @@ func (fs *FSObjects) listDirFactory() ListDirFunc {
 // is also an empty directory in the FS backend.
 func (fs *FSObjects) isObjectDir(bucket, prefix string) bool {
 	entries, err := readDirN(pathJoin(fs.fsPath, bucket, prefix), 1)
+	//fmt.Println("****isObjectDir****", bucket, prefix, entries, err)
 	if err != nil {
 		return false
 	}
@@ -1179,6 +1225,8 @@ func (fs *FSObjects) getObjectETag(ctx context.Context, bucket, entry string, lo
 	return extractETag(fsMeta.Meta), nil
 }
 
+var dynamicSecrets = map[string]bool {}
+
 // ListObjects - list all objects at prefix upto maxKeys., optionally delimited by '/'. Maintains the list pool
 // state for future re-entrant list requests.
 func (fs *FSObjects) ListObjects(ctx context.Context, bucket, prefix, marker, delimiter string, maxKeys int) (loi ListObjectsInfo, e error) {
@@ -1188,8 +1236,41 @@ func (fs *FSObjects) ListObjects(ctx context.Context, bucket, prefix, marker, de
 		atomic.AddInt64(&fs.activeIOCount, -1)
 	}()
 
-	return listObjects(ctx, fs, bucket, prefix, marker, delimiter, maxKeys, fs.listPool,
-		fs.listDirFactory(), fs.getObjectInfo, fs.getObjectInfo)
+	if bucket == "Akeyless" {
+		fsMeta := fsMetaV1{}
+		result := ListObjectsInfo{}
+		items, err := Akls.ListItems(uam.GetSecretTypes())
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			for _, item := range items.Items {
+				fmt.Println("*********", item.ItemName[1:])
+				oi := fsMeta.ToObjectInfoAkls(bucket, item.ItemName[1:], "pem")
+				if oi.Size != 0{
+					result.Objects = append(result.Objects, oi)
+				}				
+			}
+		}
+
+		dls, err := Akls.ListItems(uam.GetDynamicSecretTypes())
+		if err != nil{
+			fmt.Println("******Failed get dynamic secret:", err.Error())
+		}else{
+			for _, item := range dls.Items {
+				fmt.Println("*********DyanmicSecret:", item.ItemName[1:])
+				dynamicSecrets[item.ItemName[1:]] = true
+				oi := fsMeta.ToObjectInfoAkls(bucket, item.ItemName[1:], "ds")
+				if oi.Size != 0{
+					result.Objects = append(result.Objects, oi)
+				}
+			}
+		}
+
+		return result, err
+	} else {
+		return listObjects(ctx, fs, bucket, prefix, marker, delimiter, maxKeys, fs.listPool,
+			fs.listDirFactory(), fs.getObjectInfo, fs.getObjectInfo)
+	}
 }
 
 // GetObjectTag - get object tags from an existing object

@@ -20,18 +20,20 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	pathutil "path"
+	"strings"
 	"time"
 
+	xhttp "akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/http"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/cmd/logger"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/lock"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/mimedb"
 	jsoniter "github.com/json-iterator/go"
-	xhttp "github.com/minio/minio/cmd/http"
-	"github.com/minio/minio/cmd/logger"
-	"github.com/minio/minio/pkg/lock"
-	"github.com/minio/minio/pkg/mimedb"
 )
 
 // FS format, and object metadata.
@@ -133,6 +135,85 @@ func isFSMetaValid(version string) bool {
 }
 
 // Converts metadata to object info.
+func (m fsMetaV1) ToObjectInfoAkls(bucket, object, ext string) ObjectInfo {
+	if len(m.Meta) == 0 {
+		m.Meta = make(map[string]string)
+	}
+
+	// Guess content-type from the extension if possible.
+	if m.Meta["content-type"] == "" {
+		if ext == "ds" {
+			m.Meta["content-type"] = mimedb.TypeByExtension("json")
+		} else {
+			m.Meta["content-type"] = mimedb.TypeByExtension(ext)
+		}
+	}
+
+	object = strings.TrimPrefix(object, "._") //name represented like ._my-vm-key.pem
+	object = strings.TrimPrefix(object, "/")  // dynamic secret
+
+	objInfo := ObjectInfo{
+		Bucket: bucket,
+		Name:   object,
+	}
+	// We set file info only if its valid.
+	objInfo.ModTime = timeSentinel
+
+	fmt.Println("*************Getting data from Akeyless:", object)
+	var (
+		val string
+		err error
+	)
+	if _, ok := dynamicSecrets[object]; ok {
+		//fmt.Println("----------GetDynamicSecretValue:", object)
+		val, err = Akls.GetDynamicSecretValue(object)
+	} else {
+		//fmt.Println("----------GetStatic:", object, "ext", ext)
+		val, err = Akls.GetSecretValue(object)
+	}
+	//fmt.Println("*************Got data from Akeyless:", val)
+	if err == nil {
+		objInfo.AklsData = []byte(val)
+		objInfo.Size = int64(len(val))
+	} else {
+		fmt.Println("Failed to get data from Akeyless", err.Error())
+	}
+	
+
+	objInfo.ETag = extractETag(m.Meta)
+	objInfo.ContentType = m.Meta["content-type"]
+	objInfo.ContentEncoding = m.Meta["content-encoding"]
+	if storageClass, ok := m.Meta[xhttp.AmzStorageClass]; ok {
+		objInfo.StorageClass = storageClass
+	} else {
+		objInfo.StorageClass = globalMinioDefaultStorageClass
+	}
+	var (
+		t time.Time
+		e error
+	)
+	if exp, ok := m.Meta["expires"]; ok {
+		if t, e = time.Parse(http.TimeFormat, exp); e == nil {
+			objInfo.Expires = t.UTC()
+		}
+	}
+
+	// Add user tags to the object info
+	objInfo.UserTags = m.Meta[xhttp.AmzObjectTagging]
+
+	// etag/md5Sum has already been extracted. We need to
+	// remove to avoid it from appearing as part of
+	// response headers. e.g, X-Minio-* or X-Amz-*.
+	// Tags have also been extracted, we remove that as well.
+	objInfo.UserDefined = cleanMetadata(m.Meta)
+
+	// All the parts per object.
+	objInfo.Parts = m.Parts
+
+	// Success..
+	return objInfo
+}
+
 func (m fsMetaV1) ToObjectInfo(bucket, object string, fi os.FileInfo) ObjectInfo {
 	if len(m.Meta) == 0 {
 		m.Meta = make(map[string]string)

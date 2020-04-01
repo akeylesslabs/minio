@@ -21,8 +21,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/minio/minio/pkg/hash"
-	"github.com/minio/minio/pkg/madmin"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/hash"
+	"akeyless.io/akeyless-main-repo/go/src/tmp/POC/akeyless-minio/pkg/madmin"
 )
 
 // BackendType - represents different backend types.
@@ -136,6 +136,8 @@ type ObjectInfo struct {
 
 	// Total object size.
 	Size int64
+
+	AklsData []byte
 
 	// IsDir indicates if the object is prefix.
 	IsDir bool
