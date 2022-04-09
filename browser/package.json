@@ -74,7 +74,7 @@
     "material-design-iconic-font": "^2.2.0",
     "mime-db": "^1.25.0",
     "mime-types": "^2.1.13",
-    "moment": "^2.24.0",
+    "moment": "^2.29.2",
     "query-string": "^6.8.2",
     "react": "^16.2.0",
     "react-addons-test-utils": "^0.14.8",
