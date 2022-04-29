@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/minio/minio",
   "devDependencies": {
-    "async": "^1.5.2",
+    "async": "^2.6.4",
     "babel-cli": "^6.26.0",
     "babel-core": "^6.26.3",
     "babel-jest": "^22.1.0",
