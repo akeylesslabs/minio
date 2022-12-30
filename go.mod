@@ -12,7 +12,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/alecthomas/participle v0.2.1
 	github.com/aliyun/aliyun-oss-go-sdk v0.0.0-20190307165228-86c17b95fcd5
-	github.com/aws/aws-sdk-go v1.20.21
+	github.com/aws/aws-sdk-go v1.33.0
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bcicen/jstream v0.0.0-20190220045926-16c1f8af81c2
 	github.com/beevik/ntp v0.2.0
@@ -34,7 +34,7 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-sql-driver/mysql v1.4.1
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/gopherjs/gopherjs v0.0.0-20190328170749-bb2674552d8f // indirect
@@ -88,7 +88,7 @@ require (
 	github.com/ncw/directio v1.0.5
 	github.com/nsqio/go-nsq v1.0.7
 	github.com/philhofer/fwd v1.0.0 // indirect
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190704165056-9c2d0518ed81 // indirect
@@ -112,7 +112,6 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f
-	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a // indirect
 	golang.org/x/sys v0.0.0-20190922100055-0a153f010e69
 	golang.org/x/text v0.3.2 // indirect
